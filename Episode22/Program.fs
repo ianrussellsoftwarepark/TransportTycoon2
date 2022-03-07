@@ -17,19 +17,18 @@ let lines =
 let myData = [
     for line in lines do
         match line.Split(",") with
-        | [|A; B; Km; speed|] -> 
-            { From = A; To = B; Distance = int Km; Speed = int speed }
-            { From = B; To = A; Distance = int Km; Speed = int speed }
+        | [|start; finish; distance; speed|] -> 
+            { From = start; To = finish; Distance = int distance; Speed = int speed }
+            { From = finish; To = start; Distance = int distance; Speed = int speed }
         | _ -> ()
 ]
 
 let generateChildren (wayPoint:Waypoint) =
     myData
-    |> List.filter (fun x -> x.From = wayPoint.Location)
-    |> List.filter (fun x -> wayPoint.Route |> List.tryFind (fun z -> fst z = x.To) = None)
-    |> List.map (fun x -> 
-        let duration = decimal x.Distance / decimal x.Speed
-        { Location = x.To; Route = (x.From, wayPoint.Duration)::wayPoint.Route; Duration = duration + wayPoint.Duration })
+    |> List.filter (fun cn -> cn.From = wayPoint.Location && wayPoint.Route |> List.tryFind (fun loc -> fst loc = cn.To) = None)
+    |> List.map (fun cn -> 
+        let duration = decimal cn.Distance / decimal cn.Speed
+        { Location = cn.To; Route = (cn.From, wayPoint.Duration) :: wayPoint.Route; Duration = duration + wayPoint.Duration })
 
 let hasChildren wayPoint = 
     generateChildren wayPoint
@@ -38,9 +37,9 @@ let hasChildren wayPoint =
 
 let rec createTree hasChildren generateChildren finish (current:Waypoint) =
     let generateTree = createTree hasChildren generateChildren
-    match hasChildren current && current.Location <> finish with
-    | true -> Branch(current, seq{for next in generateChildren current do yield (generateTree finish next)})
-    | false -> Leaf(current)
+    if hasChildren current && current.Location <> finish then
+        Branch (current, seq { for next in generateChildren current do yield (generateTree finish next) })
+    else Leaf current
 
 let findRoute start finish =
     createTree hasChildren generateChildren finish { Location = start; Route = []; Duration = 0M }
@@ -56,7 +55,7 @@ let main argv =
     |> treeToList
     |> List.filter (fun x -> x.Location = argv.[1])
     |> List.minBy (fun x -> x.Duration)
-    |> fun x -> (x.Location, x.Duration)::x.Route |> List.rev |> List.tail
+    |> fun wp -> (wp.Location, wp.Duration) :: wp.Route |> List.rev |> List.tail
     |> List.fold (fun acc (loc,time) -> fst acc + "\n" + $"%.2f{time}h  ARRIVE  {loc}", 0M) ($"00.00h  DEPART  {argv.[0]}", 0M)    
     |> fun x -> printfn "%s" (fst x)
     0
