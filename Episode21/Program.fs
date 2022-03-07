@@ -17,27 +17,29 @@ let lines =
 let routes = [
     for line in lines do
         match line.Split(",") with
-        | [|A; B; Km|] -> 
-            { From = A.Trim(); To = B.Trim(); Distance = int Km }
-            { From = B.Trim(); To = A.Trim(); Distance = int Km }
+        | [|start; finish; distance|] -> 
+            { From = start; To = finish; Distance = int distance }
+            { From = finish; To = start; Distance = int distance }
         | _ -> ()
 ]
 
 let generateChildren (wayPoint:Waypoint) =
     routes
-    |> List.filter (fun x -> x.From = wayPoint.Location)
-    |> List.filter (fun x -> wayPoint.Route |> List.tryFind (fun z -> z = x.To) = None)
-    |> List.map (fun x -> { Location = x.To; Route = x.From::wayPoint.Route; Distance = x.Distance + wayPoint.Distance })
+    |> List.filter (fun cn -> 
+        cn.From = wayPoint.Location && wayPoint.Route |> List.tryFind (fun loc -> loc = cn.To) = None
+    )
+    |> List.map (fun cn -> { Location = cn.To; Route = cn.From :: wayPoint.Route; Distance = cn.Distance + wayPoint.Distance })
 
 let hasChildren wayPoint = 
     generateChildren wayPoint
-    |> fun x -> x <> List.empty
+    |> List.isEmpty
+    |> not
 
 let rec createTree hasChildren generateChildren finish (current:Waypoint) =
     let generateTree = createTree hasChildren generateChildren
     match hasChildren current && current.Location <> finish with
-    | true -> Branch(current, seq{for next in generateChildren current do yield (generateTree finish next)})
-    | false -> Leaf(current)
+    | true -> Branch (current, seq { for next in generateChildren current do yield (generateTree finish next) })
+    | false -> Leaf current
 
 let findRoute start finish =
     createTree hasChildren generateChildren finish { Location = start; Route = []; Distance = 0}
@@ -50,7 +52,7 @@ let rec treeToList tree =
 let selectShortest finish lst =
     lst
     |> List.filter (fun x -> x.Location = finish)
-    |> List.map (fun x -> x.Location::x.Route |> List.rev, x.Distance)
+    |> List.map (fun x -> x.Location :: x.Route |> List.rev, x.Distance)
     |> List.minBy snd
 
 [<EntryPoint>]
