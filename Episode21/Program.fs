@@ -25,9 +25,7 @@ let routes = [
 
 let generateChildren (wayPoint:Waypoint) =
     routes
-    |> List.filter (fun cn -> 
-        cn.From = wayPoint.Location && wayPoint.Route |> List.tryFind (fun loc -> loc = cn.To) = None
-    )
+    |> List.filter (fun cn -> cn.From = wayPoint.Location && wayPoint.Route |> List.tryFind (fun loc -> loc = cn.To) = None)
     |> List.map (fun cn -> { Location = cn.To; Route = cn.From :: wayPoint.Route; Distance = cn.Distance + wayPoint.Distance })
 
 let hasChildren wayPoint = 
@@ -37,9 +35,9 @@ let hasChildren wayPoint =
 
 let rec createTree hasChildren generateChildren finish (current:Waypoint) =
     let generateTree = createTree hasChildren generateChildren
-    match hasChildren current && current.Location <> finish with
-    | true -> Branch (current, seq { for next in generateChildren current do yield (generateTree finish next) })
-    | false -> Leaf current
+    if hasChildren current && current.Location <> finish then
+        Branch (current, seq { for next in generateChildren current do yield (generateTree finish next) })
+    else Leaf current
 
 let findRoute start finish =
     createTree hasChildren generateChildren finish { Location = start; Route = []; Distance = 0}
