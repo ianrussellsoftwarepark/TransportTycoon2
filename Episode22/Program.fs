@@ -49,14 +49,22 @@ let rec treeToList tree =
     | Leaf x -> [x]
     | Branch (x, xs) -> x :: (List.collect treeToList (xs |> Seq.toList))
 
+let getFastest finish lst =
+    lst
+    |> List.filter (fun x -> x.Location = finish)
+    |> List.minBy (fun x -> x.Duration)
+
+let prepareOutput start waypoint =
+    waypoint
+    |> fun wp -> (wp.Location, wp.Duration) :: wp.Route |> List.rev |> List.tail
+    |> List.fold (fun acc (loc,time) -> fst acc + "\n" + $"%.2f{time}h  ARRIVE  {loc}", 0M) ($"00.00h  DEPART  {start}", 0M)    
+
 [<EntryPoint>]
 let main argv =
     findRoute argv.[0] argv.[1]
     |> treeToList
-    |> List.filter (fun x -> x.Location = argv.[1])
-    |> List.minBy (fun x -> x.Duration)
-    |> fun wp -> (wp.Location, wp.Duration) :: wp.Route |> List.rev |> List.tail
-    |> List.fold (fun acc (loc,time) -> fst acc + "\n" + $"%.2f{time}h  ARRIVE  {loc}", 0M) ($"00.00h  DEPART  {argv.[0]}", 0M)    
-    |> fun x -> printfn "%s" (fst x)
+    |> getFastest argv.[1]
+    |> prepareOutput argv.[0]   
+    |> fun (output, _) -> printfn "%s" output
     0
     
