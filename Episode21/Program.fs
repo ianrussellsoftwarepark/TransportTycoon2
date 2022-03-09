@@ -58,6 +58,6 @@ let main argv =
     findRoute argv.[0] argv.[1]
     |> treeToList
     |> selectShortest argv.[1]
-    |> fun (x, _) -> printfn "%A" (x |> List.reduce (fun acc z -> acc + "," + z))
+    |> fun (x, _) -> printfn "%s" (x |> List.reduce (fun acc z -> acc + "," + z))
     0
     
