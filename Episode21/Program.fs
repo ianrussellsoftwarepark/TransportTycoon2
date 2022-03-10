@@ -14,7 +14,7 @@ let lines =
     |> fun data -> data.Split(System.Environment.NewLine)
     |> Array.skip 1
 
-let routes = [
+let connections = [
     for line in lines do
         match line.Split(",") with
         | [|start; finish; distance|] -> 
@@ -23,24 +23,19 @@ let routes = [
         | _ -> ()
 ]
 
-let generateChildren (wayPoint:Waypoint) =
-    routes
+let getChildren connections wayPoint =
+    connections
     |> List.filter (fun cn -> cn.From = wayPoint.Location && wayPoint.Route |> List.tryFind (fun loc -> loc = cn.To) = None)
     |> List.map (fun cn -> { Location = cn.To; Route = cn.From :: wayPoint.Route; Distance = cn.Distance + wayPoint.Distance })
 
-let hasChildren wayPoint = 
-    generateChildren wayPoint
-    |> List.isEmpty
-    |> not
-
-let rec createTree hasChildren generateChildren finish (current:Waypoint) =
-    let generateTree = createTree hasChildren generateChildren
-    if hasChildren current && current.Location <> finish then
-        Branch (current, seq { for next in generateChildren current do yield (generateTree finish next) })
-    else Leaf current
-
-let findRoute start finish =
-    createTree hasChildren generateChildren finish { Location = start; Route = []; Distance = 0}
+let findRoutes continuation start finish =
+    let hasChildren wayPoint = 
+        continuation wayPoint |> List.isEmpty |> not
+    let rec createTree continuation finish current =
+        if hasChildren current && current.Location <> finish then
+            Branch (current, seq { for next in continuation current do yield (createTree continuation finish next) })
+        else Leaf current
+    createTree continuation finish { Location = start; Route = []; Distance = 0}
 
 let rec treeToList tree =
     match tree with 
@@ -55,7 +50,7 @@ let selectShortest finish lst =
 
 [<EntryPoint>]
 let main argv =
-    findRoute argv.[0] argv.[1]
+    findRoutes (getChildren connections) argv.[0] argv.[1]
     |> treeToList
     |> selectShortest argv.[1]
     |> fun (x, _) -> printfn "%s" (x |> List.reduce (fun acc z -> acc + "," + z))
