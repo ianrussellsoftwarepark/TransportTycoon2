@@ -28,14 +28,13 @@ let getChildren connections wayPoint =
     |> List.filter (fun cn -> cn.From = wayPoint.Location && wayPoint.Route |> List.tryFind (fun loc -> loc = cn.To) = None)
     |> List.map (fun cn -> { Location = cn.To; Route = cn.From :: wayPoint.Route; Distance = cn.Distance + wayPoint.Distance })
 
-let findRoutes continuation start finish =
-    let hasChildren wayPoint = 
-        continuation wayPoint |> List.isEmpty |> not
+let findRoutes getChildRoutes start finish =
     let rec createTree continuation finish current =
-        if hasChildren current && current.Location <> finish then
-            Branch (current, seq { for next in continuation current do yield (createTree continuation finish next) })
+        let childRoutes = continuation current
+        if childRoutes |> List.isEmpty |> not && current.Location <> finish then
+            Branch (current, seq { for next in childRoutes do yield (createTree continuation finish next) })
         else Leaf current
-    createTree continuation finish { Location = start; Route = []; Distance = 0}
+    createTree getChildRoutes finish { Location = start; Route = []; Distance = 0}
 
 let rec treeToList tree =
     match tree with 
