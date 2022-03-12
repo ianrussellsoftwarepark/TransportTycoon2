@@ -14,7 +14,7 @@ let lines =
     |> fun data -> data.Split(System.Environment.NewLine)
     |> Array.skip 1
 
-let myData = [
+let connections = [
     for line in lines do
         match line.Split(",") with
         | [|start; finish; distance; speed|] -> 
@@ -23,26 +23,20 @@ let myData = [
         | _ -> ()
 ]
 
-let generateChildren (wayPoint:Waypoint) =
-    myData
+let getChildren connections (wayPoint:Waypoint) =
+    connections
     |> List.filter (fun cn -> cn.From = wayPoint.Location && wayPoint.Route |> List.tryFind (fun loc -> fst loc = cn.To) = None)
     |> List.map (fun cn -> 
         let duration = decimal cn.Distance / decimal cn.Speed
         { Location = cn.To; Route = (cn.From, wayPoint.Duration) :: wayPoint.Route; Duration = duration + wayPoint.Duration })
 
-let hasChildren wayPoint = 
-    generateChildren wayPoint
-    |> List.isEmpty
-    |> not
-
-let rec createTree hasChildren generateChildren finish (current:Waypoint) =
-    let generateTree = createTree hasChildren generateChildren
-    if hasChildren current && current.Location <> finish then
-        Branch (current, seq { for next in generateChildren current do yield (generateTree finish next) })
-    else Leaf current
-
-let findRoute start finish =
-    createTree hasChildren generateChildren finish { Location = start; Route = []; Duration = 0M }
+let findRoutes getChildRoutes start finish =
+    let rec createTree continuation finish current =
+        let childRoutes = continuation current
+        if childRoutes |> List.isEmpty |> not && current.Location <> finish then
+            Branch (current, seq { for next in childRoutes do yield (createTree continuation finish next) })
+        else Leaf current
+    createTree getChildRoutes finish { Location = start; Route = []; Duration = 0M }
 
 let rec treeToList tree =
     match tree with 
@@ -61,7 +55,7 @@ let prepareOutput start waypoint =
 
 [<EntryPoint>]
 let main argv =
-    findRoute argv.[0] argv.[1]
+    findRoutes (getChildren connections) argv.[0] argv.[1]
     |> treeToList
     |> getFastest argv.[1]
     |> prepareOutput argv.[0]   
