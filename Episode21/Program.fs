@@ -1,57 +1,63 @@
 ﻿open System.IO
 
 type Tree<'T> =
-    |Branch of 'T * Tree<'T> seq
-    |Leaf of 'T
+    | Branch of 'T * Tree<'T> seq
+    | Leaf of 'T
 
-type Waypoint = { Location:string; Route:string list; Distance:int }
+type Waypoint = { Location:string; Route:string list; TotalDistance:int }
 
-type Connection = { From:string; To:string; Distance:int }
+type Connection = { Start:string; Finish:string; Distance:int }
 
-let lines = 
-    Path.Combine(__SOURCE_DIRECTORY__, "resources", "data.csv")
+let loadData path =
+    path
     |> File.ReadAllText
-    |> fun data -> data.Split(System.Environment.NewLine)
+    |> fun text -> text.Split(System.Environment.NewLine)
     |> Array.skip 1
+    |> fun rows -> [
+        for row in rows do
+            match row.Split(",") with
+            | [|start;finish;distance|] -> 
+                { Start = start; Finish = finish; Distance = int distance }
+                { Start = finish; Finish = start; Distance = int distance }
+            | _ -> failwith "Row is badly formed"
+    ]
+    |> List.groupBy (fun cn -> cn.Start)
+    |> Map.ofList
 
-let connections = [
-    for line in lines do
-        match line.Split(",") with
-        | [|start; finish; distance|] -> 
-            { From = start; To = finish; Distance = int distance }
-            { From = finish; To = start; Distance = int distance }
-        | _ -> ()
-]
-
-let getChildren connections wayPoint =
+let getUnvisited connections current =
     connections
-    |> List.filter (fun cn -> cn.From = wayPoint.Location && wayPoint.Route |> List.tryFind (fun loc -> loc = cn.To) = None)
-    |> List.map (fun cn -> { Location = cn.To; Route = cn.From :: wayPoint.Route; Distance = cn.Distance + wayPoint.Distance })
-
-let findRoutes getChildRoutes start finish =
-    let rec createTree continuation finish current =
-        let childRoutes = continuation current
-        if childRoutes |> List.isEmpty |> not && current.Location <> finish then
-            Branch (current, seq { for next in childRoutes do yield (createTree continuation finish next) })
-        else Leaf current
-    createTree getChildRoutes finish { Location = start; Route = []; Distance = 0}
+    |> List.filter (fun cn -> current.Route |> List.exists (fun loc -> loc = cn.Finish) |> not)
+    |> List.map (fun cn -> { 
+        Location = cn.Finish
+        Route = cn.Start :: current.Route
+        TotalDistance = cn.Distance + current.TotalDistance })
 
 let rec treeToList tree =
     match tree with 
     | Leaf x -> [x]
-    | Branch (x, xs) -> x :: (List.collect treeToList (xs |> Seq.toList))
+    | Branch (_, xs) -> List.collect treeToList (xs |> Seq.toList)
 
-let selectShortest finish lst =
-    lst
-    |> List.filter (fun x -> x.Location = finish)
-    |> List.map (fun x -> x.Location :: x.Route |> List.rev, x.Distance)
-    |> List.minBy snd
+let findPossibleRoutes start finish (routeMap:Map<string, Connection list>) =
+    let rec loop current =
+        let nextRoutes = getUnvisited routeMap[current.Location] current
+        if nextRoutes |> List.isEmpty |> not && current.Location <> finish then
+            Branch (current, seq { for next in nextRoutes do loop next })
+        else 
+            Leaf current
+    loop { Location = start; Route = []; TotalDistance = 0 }
+    |> treeToList
+    |> List.filter (fun wp -> wp.Location = finish)
+
+let selectShortestRoute routes =
+    routes 
+    |> List.minBy (fun wp -> wp.TotalDistance)
+    |> fun wp -> wp.Location :: wp.Route |> List.rev, wp.TotalDistance
 
 [<EntryPoint>]
 let main argv =
-    findRoutes (getChildren connections) argv.[0] argv.[1]
-    |> treeToList
-    |> selectShortest argv.[1]
-    |> fun (x, _) -> printfn "%s" (x |> List.reduce (fun acc z -> acc + "," + z))
+    Path.Combine(__SOURCE_DIRECTORY__, "resources", "data.csv") 
+    |> loadData
+    |> findPossibleRoutes argv[0] argv[1]
+    |> selectShortestRoute
+    |> printfn "%A"
     0
-    
